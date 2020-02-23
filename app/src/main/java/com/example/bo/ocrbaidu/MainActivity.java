@@ -1,14 +1,17 @@
 package com.example.bo.ocrbaidu;
 
 import android.Manifest;
+import android.content.ComponentName;
 import android.content.ContentUris;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
+import android.os.IBinder;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
@@ -26,12 +29,10 @@ import com.baidu.ocr.sdk.OCR;
 import com.baidu.ocr.sdk.OnResultListener;
 import com.baidu.ocr.sdk.exception.OCRError;
 import com.baidu.ocr.sdk.model.AccessToken;
-import com.baidu.ocr.sdk.model.GeneralBasicParams;
-import com.baidu.ocr.sdk.model.GeneralResult;
-import com.baidu.ocr.sdk.model.WordSimple;
 import com.bumptech.glide.Glide;
+import com.example.bo.ocrbaidu.listener.OcrListener;
+import com.example.bo.ocrbaidu.service.OcrService;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,33 +41,9 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "OCR";
-
-    private static final int REQUEST_CODE_GENERAL = 105;
-    private static final int REQUEST_CODE_GENERAL_BASIC = 106;
-    private static final int REQUEST_CODE_ACCURATE_BASIC = 107;
-    private static final int REQUEST_CODE_ACCURATE = 108;
-    private static final int REQUEST_CODE_GENERAL_ENHANCED = 109;
-    private static final int REQUEST_CODE_GENERAL_WEBIMAGE = 110;
-    private static final int REQUEST_CODE_BANKCARD = 111;
-    private static final int REQUEST_CODE_VEHICLE_LICENSE = 120;
-    private static final int REQUEST_CODE_DRIVING_LICENSE = 121;
-    private static final int REQUEST_CODE_LICENSE_PLATE = 122;
-    private static final int REQUEST_CODE_BUSINESS_LICENSE = 123;
-    private static final int REQUEST_CODE_RECEIPT = 124;
-
-    private static final int REQUEST_CODE_PASSPORT = 125;
-    private static final int REQUEST_CODE_NUMBERS = 126;
-    private static final int REQUEST_CODE_QRCODE = 127;
-    private static final int REQUEST_CODE_BUSINESSCARD = 128;
-    private static final int REQUEST_CODE_HANDWRITING = 129;
-    private static final int REQUEST_CODE_LOTTERY = 130;
-    private static final int REQUEST_CODE_VATINVOICE = 131;
-    private static final int REQUEST_CODE_CUSTOM = 132;
-
     // activity result requestCode
     private static final int CAMERA = 1;
     private static final int PICTURE = 2;
-
     // permission
     private static final String[] permissions = new String[] {
         Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -82,7 +59,30 @@ public class MainActivity extends AppCompatActivity {
     private ImageView imageView;
     private Uri imageUri;
     private boolean hasGotToken = false;
-    String imagePath = null;
+    String m_imagePath = null;
+
+    private OcrService m_ocrService;
+    private ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            m_ocrService = ((OcrService.OcrBinder) service).getService();
+            // set listene
+            m_ocrService.setOcrListener(new OcrListener() {
+                @Override
+                public void onOcrResult(String result) {
+                    Log.d(TAG, "onOcrResult: " + result);
+                    Intent intent = new Intent(MainActivity.this, OcrActivity.class);
+                    intent.putExtra("ocr_result", result);
+                    startActivity(intent);
+                }
+            });
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,8 +96,21 @@ public class MainActivity extends AppCompatActivity {
         btnCamera = findViewById(R.id.camera);
         btnCamera.setOnClickListener(cameraClickListener);
         imageView = findViewById(R.id.image);
-
         // permission
+        requestPermission();
+        // init token
+        initAccessTokenWithAkSk();
+        // start service
+//        Intent intent = new Intent(this, OcrService.class);
+//        startService(intent);
+        Intent bindIntent = new Intent(this, OcrService.class);
+        bindService(bindIntent, connection, BIND_AUTO_CREATE);
+    }
+
+    /**
+     *  request permission
+     */
+    private void requestPermission() {
         for(String permission:permissions) {
             if(checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
                 permissionList.add(permission);
@@ -106,16 +119,23 @@ public class MainActivity extends AppCompatActivity {
         if(permissionList.size() > 0) {
             requestPermissions(permissions, 0);
         }
-
-        // init token
-        initAccessTokenWithAkSk();
     }
-
-    private boolean checkTokenStatus() {
-       if(!hasGotToken) {
-           Toast.makeText(getApplicationContext(), "token does get yet !", Toast.LENGTH_SHORT).show();
-       }
-       return hasGotToken;
+        @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        boolean denied = false;
+        switch (requestCode) {
+            case 0:
+                for (int i = 0; i < grantResults.length; i ++) {
+                    if(grantResults[i] == -1) {
+                        denied = true;
+                    }
+                }
+                if(denied) {
+                    Toast.makeText(MainActivity.this, "permission denied", Toast.LENGTH_SHORT).show();
+                }
+            default:
+                break;
+        }
     }
 
     /**
@@ -143,24 +163,16 @@ public class MainActivity extends AppCompatActivity {
         }, getApplicationContext(), "Y78alE5vrsquyOod2qbSSBhA", "WBLuGeVdbe8vP8YzQUVZi87GtN0oNqbU");
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        boolean denied = false;
-        switch (requestCode) {
-            case 0:
-                for (int i = 0; i < grantResults.length; i ++) {
-                    if(grantResults[i] == -1) {
-                        denied = true;
-                    }
-                }
-                if(denied) {
-                    Toast.makeText(MainActivity.this, "permission denied", Toast.LENGTH_SHORT).show();
-                }
-            default:
-                break;
-        }
+    private boolean checkTokenStatus() {
+       if(!hasGotToken) {
+           Toast.makeText(getApplicationContext(), "token does get yet !", Toast.LENGTH_SHORT).show();
+       }
+       return hasGotToken;
     }
 
+    /**
+     *  click listener
+     */
     private View.OnClickListener ocrClickListener = new View.OnClickListener() {
         @Override
         public void onClick(View v) {
@@ -168,7 +180,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             Log.d(TAG, "ocrClickListener: ");
-            recGeneral(imagePath);
+            m_ocrService.recGeneral(m_imagePath);
 
         }
     };
@@ -196,11 +208,10 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "onClick: cameraClickListener :" + getExternalCacheDir());
             try {
                 if (image.exists()) {
-                    Log.d(TAG, "onClick: image exist, delete");
                     image.delete();
                 }
                 image.createNewFile();
-                imagePath = image.getAbsolutePath();
+                m_imagePath = image.getAbsolutePath();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -246,51 +257,10 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void recGeneral(String filePath) {
-        File image = new File(filePath);
-        if (!image.exists()) {
-            Log.e(TAG, "image does not exist" + image.getAbsolutePath());
-            return;
-        }
-        final StringBuilder sb = new StringBuilder();
-        // 通用文字识别参数设置
-        GeneralBasicParams params = new GeneralBasicParams();
-        params.setDetectDirection(true);
-        params.setLanguageType(GeneralBasicParams.CHINESE_ENGLISH);
-        params.setDetectLanguage(true);
-        //params.setImageFile(new File(image.getAbsolutePath()));
-        params.setImageFile(image);
-
-        // 调用通用文字识别服务
-        OCR.getInstance(this).recognizeGeneralBasic(params, new OnResultListener<GeneralResult>() {
-            @Override
-            public void onResult(GeneralResult generalResult) {
-                // 调用成功，返回GeneralResult对象
-                for (WordSimple wordSimple : generalResult.getWordList()) {
-                   // wordSimple不包含位置信息
-                    WordSimple word = wordSimple;
-                    sb.append( word.getWords());
-                    sb.append("\n");
-                }
-                // json格式返回字符串
-                // listener.onResult(result.getJsonRes());
-                Log.d(TAG, "onResult: " + sb.toString());
-                Intent intent = new Intent(MainActivity.this, OcrActivity.class);
-                intent.putExtra("ocr_result", sb.toString());
-
-            }
-
-            @Override
-            public void onError(OCRError ocrError) {
-                // 调用失败，返回OCRError对象
-                Log.d(TAG, "onError: ocr fail : " + ocrError.getMessage());
-                Toast.makeText(MainActivity.this, "ocr fail !", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-    }
     private void handleImageOnKitKat(Intent data) {
         Uri uri = data.getData();
+        String imagePath = null;
+
         Log.d(TAG, "handleImageOnKitKat: uri : " + uri );
         if(DocumentsContract.isDocumentUri(this, uri)) {
             String docId = DocumentsContract.getDocumentId(uri);
@@ -310,7 +280,6 @@ public class MainActivity extends AppCompatActivity {
         else if("file".equalsIgnoreCase(uri.getScheme())) {
             imagePath = uri.getPath();
         }
-
         displayImage(imagePath);
     }
 
@@ -355,10 +324,9 @@ public class MainActivity extends AppCompatActivity {
 //        else {
 //            Toast.makeText(this, "failed to get image", Toast.LENGTH_SHORT).show();
 //        }
-
-
         Log.d(TAG, "displayImage: imagePath : " + imagePath);
         Glide.with(this).load(imagePath).into(imageView);
+        m_imagePath = imagePath;
     }
 
 }
