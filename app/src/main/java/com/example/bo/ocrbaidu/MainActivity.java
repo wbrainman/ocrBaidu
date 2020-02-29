@@ -38,6 +38,7 @@ import com.example.bo.ocrbaidu.listener.OcrListener;
 import com.example.bo.ocrbaidu.service.OcrService;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -258,8 +259,14 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(TAG, "onActivityResult result not ok");
                     return;
                 }
-                Log.d(TAG, "onActivityResult: glide set image");
-                Glide.with(this).load(imageUri).into(imageView);
+                Log.d(TAG, "imageUri : " + imageUri);
+//                Glide.with(this).load(imageUri).into(imageView);
+                try {
+                    Bitmap bitmap = BitmapFactory.decodeStream(getContentResolver().openInputStream(imageUri));
+                    imageView.setImageBitmap(bitmap);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                }
                 break;
             case PICTURE:
                 if(resultCode == RESULT_OK) {
