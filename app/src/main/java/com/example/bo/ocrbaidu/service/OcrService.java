@@ -4,6 +4,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -45,8 +46,10 @@ public class OcrService extends Service {
     private static final String TAG = "OCR";
     OcrBinder m_ocrBinder = new OcrBinder();
     OcrListener m_ocrListener;
+    private LocalBroadcastManager localBroadcastManager;
 
     public OcrService() {
+        localBroadcastManager = LocalBroadcastManager.getInstance(this);
     }
 
     public class OcrBinder extends Binder {
@@ -97,14 +100,20 @@ public class OcrService extends Service {
                 }
                 // json格式返回字符串
                 // listener.onResult(result.getJsonRes());
-                m_ocrListener.onOcrResult(sb.toString());
+//                m_ocrListener.onOcrResult(sb.toString());
+                Intent intent = new Intent("com.bo.broadcast.OCR_SUCCESS");
+                intent.putExtra("ocrResult", sb.toString());
+                localBroadcastManager.sendBroadcast(intent);
             }
 
             @Override
             public void onError(OCRError ocrError) {
                 // 调用失败，返回OCRError对象
                 Log.d(TAG, "onError: ocr fail : " + ocrError.getMessage());
-                m_ocrListener.onOcrResult(ocrError.getMessage());
+//                m_ocrListener.onOcrResult(ocrError.getMessage());
+                Intent intent = new Intent("com.bo.broadcast.OCR_SUCCESS");
+                intent.putExtra("ocrResult", ocrError.getMessage());
+                localBroadcastManager.sendBroadcast(intent);
             }
         });
     }

@@ -1,9 +1,12 @@
 package com.example.bo.ocrbaidu;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.ContentUris;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -17,6 +20,7 @@ import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.FileProvider;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -67,15 +71,15 @@ public class MainActivity extends AppCompatActivity {
         public void onServiceConnected(ComponentName name, IBinder service) {
             m_ocrService = ((OcrService.OcrBinder) service).getService();
             // set listene
-            m_ocrService.setOcrListener(new OcrListener() {
-                @Override
-                public void onOcrResult(String result) {
-                    Log.d(TAG, "onOcrResult: " + result);
-                    Intent intent = new Intent(MainActivity.this, OcrActivity.class);
-                    intent.putExtra("ocr_result", result);
-                    startActivity(intent);
-                }
-            });
+//            m_ocrService.setOcrListener(new OcrListener() {
+//                @Override
+//                public void onOcrResult(String result) {
+//                    Log.d(TAG, "onOcrResult: " + result);
+//                    Intent intent = new Intent(MainActivity.this, OcrActivity.class);
+//                    intent.putExtra("ocr_result", result);
+//                    startActivity(intent);
+//                }
+//            });
         }
 
         @Override
@@ -83,6 +87,8 @@ public class MainActivity extends AppCompatActivity {
 
         }
     };
+
+    private LocalReceiver localReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,6 +111,20 @@ public class MainActivity extends AppCompatActivity {
 //        startService(intent);
         Intent bindIntent = new Intent(this, OcrService.class);
         bindService(bindIntent, connection, BIND_AUTO_CREATE);
+
+        //register broadcast
+        IntentFilter intentFilter;
+        intentFilter = new IntentFilter();
+        intentFilter.addAction("com.bo.broadcast.OCR_SUCCESS");
+        localReceiver = new LocalReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(localReceiver, intentFilter);
+    }
+
+    class LocalReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "onReceive: ");
+        }
     }
 
     /**
@@ -180,8 +200,9 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             Log.d(TAG, "ocrClickListener: ");
+            Intent intent = new Intent(MainActivity.this, OcrActivity.class);
+            startActivity(intent);
             m_ocrService.recGeneral(m_imagePath);
-
         }
     };
 
