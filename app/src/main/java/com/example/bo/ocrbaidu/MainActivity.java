@@ -19,11 +19,19 @@ import android.provider.DocumentsContract;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.NavigationView;
 import android.support.v4.content.FileProvider;
 import android.support.v4.content.LocalBroadcastManager;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -58,9 +66,7 @@ public class MainActivity extends AppCompatActivity {
     };
     private List<String> permissionList = new ArrayList<>();
 
-    private Button btnOcr;
-    private Button btnPicture;
-    private Button btnCamera;
+    private DrawerLayout drawerLayout;
     private ImageView imageView;
     private Uri imageUri;
     private boolean hasGotToken = false;
@@ -95,14 +101,35 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        btnOcr = findViewById(R.id.ocr);
-        btnOcr.setOnClickListener(ocrClickListener);
-        btnPicture = findViewById(R.id.picture);
-        btnPicture.setOnClickListener(pictureClickListener);
-        btnCamera = findViewById(R.id.camera);
-        btnCamera.setOnClickListener(cameraClickListener);
         imageView = findViewById(R.id.image);
+        // toolbar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        drawerLayout = findViewById(R.id.drawer_layout);
+        ActionBar actionBar = getSupportActionBar();
+        if (null != actionBar) {
+            actionBar.setDisplayHomeAsUpEnabled(true);
+            actionBar.setHomeAsUpIndicator(R.drawable.cat_footprint_24px);
+        }
+        //drawer layout
+        drawerLayout = findViewById(R.id.drawer_layout);
+        NavigationView navView = findViewById(R.id.nav_view);
+        navView.setCheckedItem(R.id.nav_1);
+        navView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+            @Override
+            public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
+                drawerLayout.closeDrawers();
+                return true;
+            }
+        });
+        // floatingActionButton
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.floating_action);
+        fab.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                takeCamera();
+            }
+        });
         // permission
         requestPermission();
         // init token
@@ -119,6 +146,36 @@ public class MainActivity extends AppCompatActivity {
         intentFilter.addAction("com.bo.broadcast.OCR_SUCCESS");
         localReceiver = new LocalReceiver();
         LocalBroadcastManager.getInstance(this).registerReceiver(localReceiver, intentFilter);
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.toolbar, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                drawerLayout.openDrawer(GravityCompat.START);
+                break;
+            case R.id.album:
+                openAlbum();
+                break;
+            case R.id.ocr:
+                if (!checkTokenStatus()) {
+                    return false;
+                }
+                Log.d(TAG, "ocrClickListener: ");
+                Intent intent1 = new Intent(MainActivity.this, OcrActivity.class);
+                startActivity(intent1);
+                m_ocrService.recGeneral(m_imagePath);
+                break;
+            default:
+                break;
+        }
+        return true;
     }
 
     class LocalReceiver extends BroadcastReceiver {
@@ -191,65 +248,42 @@ public class MainActivity extends AppCompatActivity {
        return hasGotToken;
     }
 
-    /**
-     *  click listener
-     */
-    private View.OnClickListener ocrClickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if (!checkTokenStatus()) {
-                return;
-            }
-            Log.d(TAG, "ocrClickListener: ");
-            Intent intent = new Intent(MainActivity.this, OcrActivity.class);
-            startActivity(intent);
-            m_ocrService.recGeneral(m_imagePath);
+    private void openAlbum() {
+        if (!checkTokenStatus()) {
+            return;
         }
-    };
+        Intent intent = new Intent("android.intent.action.GET_CONTENT");
+        intent.setType("image/*");
+        startActivityForResult(intent, PICTURE);
+    }
 
-    private View.OnClickListener pictureClickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if (!checkTokenStatus()) {
-                return;
-            }
-            Intent intent = new Intent("android.intent.action.GET_CONTENT");
-            intent.setType("image/*");
-            startActivityForResult(intent, PICTURE);
+    private void takeCamera(){
+        if (!checkTokenStatus()) {
+            return;
         }
-    };
-
-    private View.OnClickListener cameraClickListener = new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if (!checkTokenStatus()) {
-                return;
+        File image = new File(getExternalCacheDir(), "image.jpg");
+        Log.d(TAG, "onClick: cameraClickListener :" + getExternalCacheDir());
+        try {
+            if (image.exists()) {
+                image.delete();
             }
-
-            File image = new File(getExternalCacheDir(), "image.jpg");
-            Log.d(TAG, "onClick: cameraClickListener :" + getExternalCacheDir());
-            try {
-                if (image.exists()) {
-                    image.delete();
-                }
-                image.createNewFile();
-                m_imagePath = image.getAbsolutePath();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            if (Build.VERSION.SDK_INT >= 24) {
-                imageUri = FileProvider.getUriForFile(MainActivity.this, "com.example.bo.ocrbaidu.provider", image);
-            }
-            else {
-                imageUri = Uri.fromFile(image);
-            }
-
-            Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
-            intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-            startActivityForResult(intent, CAMERA);
+            image.createNewFile();
+            m_imagePath = image.getAbsolutePath();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-    };
+
+        if (Build.VERSION.SDK_INT >= 24) {
+            imageUri = FileProvider.getUriForFile(MainActivity.this, "com.example.bo.ocrbaidu.provider", image);
+        }
+        else {
+            imageUri = Uri.fromFile(image);
+        }
+
+        Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+        startActivityForResult(intent, CAMERA);
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
@@ -277,11 +311,9 @@ public class MainActivity extends AppCompatActivity {
                         handleImageBeforeKitKat(data);
                     }
                 }
-
                 break;
             default:
                 break;
-
         }
     }
 
