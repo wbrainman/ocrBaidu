@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         ActionBar actionBar = getSupportActionBar();
         if (null != actionBar) {
             actionBar.setDisplayHomeAsUpEnabled(true);
-            actionBar.setHomeAsUpIndicator(R.drawable.cat_footprint_24px);
+            actionBar.setHomeAsUpIndicator(R.drawable.menu);
         }
         //drawer layout
         drawerLayout = findViewById(R.id.drawer_layout);
