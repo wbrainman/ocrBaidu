@@ -13,11 +13,35 @@
         android:layout_centerInParent="true"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
-    <TextView
-        android:id="@+id/ocr_text"
-        android:textIsSelectable="true"
-        android:layout_centerInParent="true"
+
+    <android.support.design.widget.CoordinatorLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <android.support.design.widget.AppBarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <android.support.v7.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="@color/colorPrimary"
+                android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+                />
+        </android.support.design.widget.AppBarLayout>
+
+        <TextView
+            android:id="@+id/ocr_text"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior"
+            android:textIsSelectable="true"
+            android:layout_centerInParent="true"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+
+    </android.support.design.widget.CoordinatorLayout>
+
 
 </RelativeLayout>
