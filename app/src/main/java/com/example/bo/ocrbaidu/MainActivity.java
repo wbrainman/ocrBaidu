@@ -42,6 +42,7 @@ import com.baidu.ocr.sdk.OnResultListener;
 import com.baidu.ocr.sdk.exception.OCRError;
 import com.baidu.ocr.sdk.model.AccessToken;
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.bo.ocrbaidu.listener.OcrListener;
 import com.example.bo.ocrbaidu.service.OcrService;
 
@@ -57,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     // activity result requestCode
     private static final int CAMERA = 1;
     private static final int PICTURE = 2;
+    private static final int CROP = 3;
     // permission
     private static final String[] permissions = new String[] {
         Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -68,7 +70,8 @@ public class MainActivity extends AppCompatActivity {
 
     private DrawerLayout drawerLayout;
     private ImageView imageView;
-    private Uri imageUri;
+    private Uri m_imageUri;
+    private Uri m_cropUri;
     private boolean hasGotToken = false;
     String m_imagePath = null;
 
@@ -159,6 +162,9 @@ public class MainActivity extends AppCompatActivity {
         switch (item.getItemId()) {
             case android.R.id.home:
                 drawerLayout.openDrawer(GravityCompat.START);
+                break;
+            case R.id.crop:
+                photoCrop(m_imageUri);
                 break;
             case R.id.album:
                 openAlbum();
@@ -252,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
         if (!checkTokenStatus()) {
             return;
         }
-        Intent intent = new Intent("android.intent.action.GET_CONTENT");
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.setType("image/*");
         startActivityForResult(intent, PICTURE);
     }
@@ -262,7 +268,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         File image = new File(getExternalCacheDir(), "image.jpg");
-        Log.d(TAG, "onClick: cameraClickListener :" + getExternalCacheDir());
         try {
             if (image.exists()) {
                 image.delete();
@@ -272,17 +277,55 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        m_imageUri = convertToUri(image);
 
-        if (Build.VERSION.SDK_INT >= 24) {
-            imageUri = FileProvider.getUriForFile(MainActivity.this, "com.example.bo.ocrbaidu.provider", image);
-        }
-        else {
-            imageUri = Uri.fromFile(image);
-        }
+        Log.d(TAG, "takeCamera path: " + m_imagePath);
+        Log.d(TAG, "takeCamera uri: " + m_imageUri);
 
         Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
-        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, m_imageUri);
         startActivityForResult(intent, CAMERA);
+    }
+
+    private void photoCrop(Uri uri) {
+        File file = new File(getExternalCacheDir(), "crop.jpg");
+        try {
+            if (file.exists()) {
+                file.delete();
+            }
+            file.createNewFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        m_cropUri = Uri.fromFile(file);
+        Log.d(TAG, "photoCrop path:" + file.getAbsolutePath());
+        Log.d(TAG, "photoCrop uri:" + m_cropUri);
+
+        Intent intent = new Intent("com.android.camera.action.CROP");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        intent.setDataAndType(uri, "image/*");
+        // crop = true开启intent中设置显示的view可剪裁
+        intent.putExtra("crop", "true");
+        intent.putExtra("scale", "true");
+        // 如果打开下面代码，截取的是原型区域
+        // 高宽的比例
+//        intent.putExtra("aspectX", 1);
+//        intent.putExtra("aspectY", 1);
+//        //建材图片高宽
+//        intent.putExtra("outputX", 150);
+//        intent.putExtra("outputY", 300);
+        intent.putExtra("return-data", false);
+        /*** output uri必须使用Uri.fromFile(file),用FileProvider.getUriForFile
+         * 会导致“无法保存经过剪裁的图片问题”，why?
+         ***/
+//        intent.putExtra(MediaStore.EXTRA_OUTPUT, m_cropUri);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, m_cropUri);
+        startActivityForResult(intent, CROP);
     }
 
     @Override
@@ -293,14 +336,19 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(TAG, "onActivityResult result not ok");
                     return;
                 }
-                Log.d(TAG, "imageUri : " + imageUri);
-//                Glide.with(this).load(imageUri).into(imageView);
-                try {
-                    Bitmap bitmap = BitmapFactory.decodeStream(getContentResolver().openInputStream(imageUri));
-                    imageView.setImageBitmap(bitmap);
-                } catch (FileNotFoundException e) {
-                    e.printStackTrace();
-                }
+                Log.d(TAG, "camera image url : " + m_imageUri);
+                Glide.with(this)
+                    .load(m_imageUri)
+                    .skipMemoryCache(true)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                    .into(imageView);
+//                try {
+//                    Bitmap bitmap = BitmapFactory.decodeStream
+//                            (getContentResolver().openInputStream(imageUri));
+//                    imageView.setImageBitmap(bitmap);
+//                } catch (FileNotFoundException e) {
+//                    e.printStackTrace();
+//                }
                 break;
             case PICTURE:
                 if(resultCode == RESULT_OK) {
@@ -312,6 +360,14 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
                 break;
+            case CROP:
+                Log.d(TAG, "cropped image uri : " + m_cropUri);
+                Glide.with(this)
+                    .load(m_cropUri)
+                    .skipMemoryCache(true)
+                    .diskCacheStrategy(DiskCacheStrategy.NONE)
+                    .into(imageView);
+                break;
             default:
                 break;
         }
@@ -321,6 +377,7 @@ public class MainActivity extends AppCompatActivity {
         Uri uri = data.getData();
         String imagePath = null;
 
+        Log.d(TAG, "image uri : " + m_imageUri);
         Log.d(TAG, "handleImageOnKitKat: uri : " + uri );
         if(DocumentsContract.isDocumentUri(this, uri)) {
             String docId = DocumentsContract.getDocumentId(uri);
@@ -340,6 +397,7 @@ public class MainActivity extends AppCompatActivity {
         else if("file".equalsIgnoreCase(uri.getScheme())) {
             imagePath = uri.getPath();
         }
+        m_imageUri = uri;
         displayImage(imagePath);
     }
 
@@ -387,6 +445,18 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "displayImage: imagePath : " + imagePath);
         Glide.with(this).load(imagePath).into(imageView);
         m_imagePath = imagePath;
+    }
+
+    private Uri convertToUri(File file) {
+        Uri tmp;
+        if (Build.VERSION.SDK_INT >= 24) {
+            tmp = FileProvider.getUriForFile(MainActivity.this,
+                    "com.example.bo.ocrbaidu.provider", file);
+        }
+        else {
+            tmp = Uri.fromFile(file);
+        }
+       return  tmp;
     }
 
 }
