@@ -12,6 +12,7 @@ import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Path;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
@@ -273,13 +274,11 @@ public class MainActivity extends AppCompatActivity {
                 image.delete();
             }
             image.createNewFile();
-            m_imagePath = image.getAbsolutePath();
         } catch (IOException e) {
             e.printStackTrace();
         }
         m_imageUri = convertToUri(image);
 
-        Log.d(TAG, "takeCamera path: " + m_imagePath);
         Log.d(TAG, "takeCamera uri: " + m_imageUri);
 
         Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
@@ -301,6 +300,9 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        /*** output uri必须使用Uri.fromFile(file),用FileProvider.getUriForFile
+         * 会导致“无法保存经过剪裁的图片问题”，why?
+         ***/
         m_cropUri = Uri.fromFile(file);
         Log.d(TAG, "photoCrop path:" + file.getAbsolutePath());
         Log.d(TAG, "photoCrop uri:" + m_cropUri);
@@ -320,9 +322,6 @@ public class MainActivity extends AppCompatActivity {
 //        intent.putExtra("outputX", 150);
 //        intent.putExtra("outputY", 300);
         intent.putExtra("return-data", false);
-        /*** output uri必须使用Uri.fromFile(file),用FileProvider.getUriForFile
-         * 会导致“无法保存经过剪裁的图片问题”，why?
-         ***/
 //        intent.putExtra(MediaStore.EXTRA_OUTPUT, m_cropUri);
         intent.putExtra(MediaStore.EXTRA_OUTPUT, m_cropUri);
         startActivityForResult(intent, CROP);
@@ -330,35 +329,22 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if(resultCode != RESULT_OK) {
+            Log.e(TAG, "onActivityResult result not ok");
+            return;
+        }
         switch (requestCode) {
             case CAMERA:
-                if(resultCode != RESULT_OK) {
-                    Log.e(TAG, "onActivityResult result not ok");
-                    return;
-                }
                 Log.d(TAG, "camera image url : " + m_imageUri);
                 Glide.with(this)
                     .load(m_imageUri)
                     .skipMemoryCache(true)
                     .diskCacheStrategy(DiskCacheStrategy.NONE)
                     .into(imageView);
-//                try {
-//                    Bitmap bitmap = BitmapFactory.decodeStream
-//                            (getContentResolver().openInputStream(imageUri));
-//                    imageView.setImageBitmap(bitmap);
-//                } catch (FileNotFoundException e) {
-//                    e.printStackTrace();
-//                }
                 break;
             case PICTURE:
-                if(resultCode == RESULT_OK) {
-                    if(Build.VERSION.SDK_INT >= 19) {
-                        handleImageOnKitKat(data);
-                    }
-                    else {
-                        handleImageBeforeKitKat(data);
-                    }
-                }
+                m_imageUri = data.getData();
+                Glide.with(this).load(m_imageUri).into(imageView);
                 break;
             case CROP:
                 Log.d(TAG, "cropped image uri : " + m_cropUri);
@@ -367,15 +353,23 @@ public class MainActivity extends AppCompatActivity {
                     .skipMemoryCache(true)
                     .diskCacheStrategy(DiskCacheStrategy.NONE)
                     .into(imageView);
+                m_imageUri = m_cropUri;
                 break;
             default:
                 break;
         }
+
+        /*** get image path ***/
+        if(Build.VERSION.SDK_INT >= 19) {
+            m_imagePath = handleImageOnKitKat(m_imageUri);
+        }
+        else {
+            m_imagePath = handleImageBeforeKitKat(m_imageUri);
+        }
     }
 
-    private void handleImageOnKitKat(Intent data) {
-        Uri uri = data.getData();
-        String imagePath = null;
+    private String handleImageOnKitKat(Uri uri) {
+        String path = null;
 
         Log.d(TAG, "image uri : " + m_imageUri);
         Log.d(TAG, "handleImageOnKitKat: uri : " + uri );
@@ -384,33 +378,37 @@ public class MainActivity extends AppCompatActivity {
             if("com.android.providers.media.documents".equals(uri.getAuthority())) {
                 String id = docId.split(":")[1];
                 String selection = MediaStore.Images.Media._ID + "=" + id;
-                imagePath = getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, selection);
+                path = getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, selection);
             }
             else if("com.android.providers.downloads.documents".equals(uri.getAuthority())) {
                 Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), Long.valueOf(docId));
-                imagePath = getImagePath(contentUri, null);
+                path = getImagePath(contentUri, null);
             }
         }
+        else if ("com.example.bo.ocrbaidu.provider".equals(uri.getAuthority())) {
+            Log.d(TAG, "get uri auth: " + uri.getAuthority());
+            File file = new File(getExternalCacheDir(), "image.jpg");
+            path = file.getAbsolutePath();
+        }
         else if("content".equalsIgnoreCase(uri.getScheme())) {
-            imagePath = getImagePath(uri, null);
+            path = getImagePath(uri, null);
         }
         else if("file".equalsIgnoreCase(uri.getScheme())) {
-            imagePath = uri.getPath();
+            path = uri.getPath();
         }
-        m_imageUri = uri;
-        displayImage(imagePath);
+        return path;
     }
 
-    private void handleImageBeforeKitKat(Intent data) {
-        Uri uri = data.getData();
-        String imagePath = getImagePath(uri, null);
-        displayImage(imagePath);
+    private String handleImageBeforeKitKat(Uri uri) {
+        String path = getImagePath(uri, null);
+        return path;
     }
 
     private String getImagePath(Uri uri, String selection) {
         String path = null;
 
-        Cursor cursor = getContentResolver().query(uri,null, selection, null, null);
+        Cursor cursor = getContentResolver().query(uri,null, selection, null,
+                null);
         if(null != cursor) {
             if(((Cursor) cursor).moveToFirst()) {
                 path = cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.DATA));
@@ -418,33 +416,6 @@ public class MainActivity extends AppCompatActivity {
             cursor.close();
         }
         return path;
-    }
-
-    private void displayImage(final String imagePath) {
-//        if(imagePath != null) {
-//            Bitmap bitmap = BitmapFactory.decodeFile(imagePath);
-//            Log.d(TAG, "displayImage: org bitmap w = " + bitmap.getWidth() + " h = " + bitmap.getHeight());
-//            /* rescaling */
-//            Bitmap bmp = ocrService.rescaling(bitmap, 400, 400);
-//            /* binarisation */
-//            bmp = ocrService.binarisation(bmp,115);
-//            /* removeNoise */
-//            bmp = ocrService.removeNoise(bmp);
-//
-//            mBitmap = bmp;
-//            Log.d(TAG, "displayImage: resize bitmap w = " + bmp.getWidth() + " h = " + bmp.getHeight());
-//            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//            bmp.compress(Bitmap.CompressFormat.PNG, 100, baos);
-//            byte[] bytes=baos.toByteArray();
-//            Glide.with(this).load(bytes).into(imageView);
-//
-//        }
-//        else {
-//            Toast.makeText(this, "failed to get image", Toast.LENGTH_SHORT).show();
-//        }
-        Log.d(TAG, "displayImage: imagePath : " + imagePath);
-        Glide.with(this).load(imagePath).into(imageView);
-        m_imagePath = imagePath;
     }
 
     private Uri convertToUri(File file) {
