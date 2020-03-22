@@ -46,6 +46,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.example.bo.ocrbaidu.listener.OcrListener;
 import com.example.bo.ocrbaidu.service.OcrService;
+import com.example.bo.ocrbaidu.util.FileUtil;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -259,7 +260,7 @@ public class MainActivity extends AppCompatActivity {
         if (!checkTokenStatus()) {
             return;
         }
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
         startActivityForResult(intent, PICTURE);
     }
@@ -277,7 +278,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        m_imageUri = convertToUri(image);
+        m_imageUri = FileUtil.convertToUri(image);
 
         Log.d(TAG, "takeCamera uri: " + m_imageUri);
 
@@ -290,6 +291,7 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(intent, CAMERA);
     }
 
+    // TODO: move to util
     private void photoCrop(Uri uri) {
         File file = new File(getExternalCacheDir(), "crop.jpg");
         try {
@@ -344,7 +346,10 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case PICTURE:
                 m_imageUri = data.getData();
-                Glide.with(this).load(m_imageUri).into(imageView);
+                Log.d(TAG, "album image url : " + m_imageUri);
+                Glide.with(this)
+                    .load(m_imageUri)
+                    .into(imageView);
                 break;
             case CROP:
                 Log.d(TAG, "cropped image uri : " + m_cropUri);
@@ -359,75 +364,9 @@ public class MainActivity extends AppCompatActivity {
                 break;
         }
 
-        /*** get image path ***/
-        if(Build.VERSION.SDK_INT >= 19) {
-            m_imagePath = handleImageOnKitKat(m_imageUri);
-        }
-        else {
-            m_imagePath = handleImageBeforeKitKat(m_imageUri);
-        }
+        m_imagePath = FileUtil.getImagePath(m_imageUri);
+        Log.d(TAG, "m_imagePath : " + m_imagePath);
     }
 
-    private String handleImageOnKitKat(Uri uri) {
-        String path = null;
-
-        Log.d(TAG, "image uri : " + m_imageUri);
-        Log.d(TAG, "handleImageOnKitKat: uri : " + uri );
-        if(DocumentsContract.isDocumentUri(this, uri)) {
-            String docId = DocumentsContract.getDocumentId(uri);
-            if("com.android.providers.media.documents".equals(uri.getAuthority())) {
-                String id = docId.split(":")[1];
-                String selection = MediaStore.Images.Media._ID + "=" + id;
-                path = getImagePath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, selection);
-            }
-            else if("com.android.providers.downloads.documents".equals(uri.getAuthority())) {
-                Uri contentUri = ContentUris.withAppendedId(Uri.parse("content://downloads/public_downloads"), Long.valueOf(docId));
-                path = getImagePath(contentUri, null);
-            }
-        }
-        else if ("com.example.bo.ocrbaidu.provider".equals(uri.getAuthority())) {
-            Log.d(TAG, "get uri auth: " + uri.getAuthority());
-            File file = new File(getExternalCacheDir(), "image.jpg");
-            path = file.getAbsolutePath();
-        }
-        else if("content".equalsIgnoreCase(uri.getScheme())) {
-            path = getImagePath(uri, null);
-        }
-        else if("file".equalsIgnoreCase(uri.getScheme())) {
-            path = uri.getPath();
-        }
-        return path;
-    }
-
-    private String handleImageBeforeKitKat(Uri uri) {
-        String path = getImagePath(uri, null);
-        return path;
-    }
-
-    private String getImagePath(Uri uri, String selection) {
-        String path = null;
-
-        Cursor cursor = getContentResolver().query(uri,null, selection, null,
-                null);
-        if(null != cursor) {
-            if(((Cursor) cursor).moveToFirst()) {
-                path = cursor.getString(cursor.getColumnIndex(MediaStore.Images.Media.DATA));
-            }
-            cursor.close();
-        }
-        return path;
-    }
-
-    private Uri convertToUri(File file) {
-        Uri tmp;
-        if (Build.VERSION.SDK_INT >= 24) {
-            tmp = FileProvider.getUriForFile(MainActivity.this,
-                    "com.example.bo.ocrbaidu.provider", file);
-        }
-        else {
-            tmp = Uri.fromFile(file);
-        }
-       return  tmp;
-    }
 
 }
