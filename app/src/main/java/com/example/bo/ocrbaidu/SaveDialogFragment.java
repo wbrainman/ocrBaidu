@@ -42,7 +42,13 @@ public class SaveDialogFragment extends DialogFragment {
                 .setPositiveButton("YES", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        fileName = editText.getHint().toString();
+                        fileName = editText.getText().toString();
+                        if (fileName.length() == 0) {
+                            fileName = editText.getHint().toString();
+                        }
+                        else {
+                        }
+                        Log.d(TAG, "onClick: file name = " + fileName);
                         listener.onDialogPositiveClick(SaveDialogFragment.this);
                     }
                 })
