@@ -1,6 +1,8 @@
 package com.example.bo.ocrbaidu;
 
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -30,6 +32,7 @@ public class OcrActivity extends AppCompatActivity implements SaveDialogFragment
     private TextView ocrText;
     private ProgressBar progressBar;
     LocalReciever localReceiver;
+    private StringBuilder m_ocrResult = new StringBuilder();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,7 +66,21 @@ public class OcrActivity extends AppCompatActivity implements SaveDialogFragment
         case R.id.save:
             SaveDialogFragment saveDialogFragment = new SaveDialogFragment();
             saveDialogFragment.show(getSupportFragmentManager(), "tag");
+            break;
+        case R.id.copy:
+            if (m_ocrResult.length() != 0) {
+                ClipboardManager clipboardManager = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                ClipData clipData = ClipData.newPlainText("Lable", m_ocrResult.toString());
+                clipboardManager.setPrimaryClip(clipData);
+                m_ocrResult.setLength(0);
 
+                Snackbar.make(getWindow().getDecorView(), "Copy to clipboard",
+                        Snackbar.LENGTH_SHORT).show();
+            }
+            else {
+                Snackbar.make(getWindow().getDecorView(), "Noting copy to clipboard !",
+                        Snackbar.LENGTH_SHORT).show();
+            }
             break;
         default:
             break;
@@ -77,7 +94,8 @@ public class OcrActivity extends AppCompatActivity implements SaveDialogFragment
             Log.d(TAG, "onReceive: " + intent.getStringExtra("ocrResult"));
             progressBar.setVisibility(View.GONE);
             ocrText.setText(intent.getStringExtra("ocrResult"));
-
+            m_ocrResult.setLength(0);
+            m_ocrResult.append(intent.getStringExtra("ocrResult"));
         }
     }
 

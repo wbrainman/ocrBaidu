@@ -8,5 +8,11 @@
         android:icon="@drawable/save_24px"
         app:showAsAction="always"
         />
+    <item
+        android:id="@+id/copy"
+        android:title="Copy"
+        android:icon="@drawable/copy_24"
+        app:showAsAction="always"
+        />
 
 </menu>
