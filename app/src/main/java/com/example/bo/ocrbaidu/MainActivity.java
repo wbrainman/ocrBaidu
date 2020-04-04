@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
         //drawer layout
         drawerLayout = findViewById(R.id.drawer_layout);
         NavigationView navView = findViewById(R.id.nav_view);
-        navView.setCheckedItem(R.id.nav_1);
+        navView.setCheckedItem(R.id.files);
         navView.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
             @Override
             public boolean onNavigationItemSelected(@NonNull MenuItem menuItem) {
@@ -175,7 +175,10 @@ public class MainActivity extends AppCompatActivity {
                 if (!checkTokenStatus()) {
                     return false;
                 }
-                Log.d(TAG, "ocrClickListener: ");
+                if(null == m_imagePath) {
+                    Toast.makeText(getApplicationContext(), "No picture loaded", Toast.LENGTH_SHORT).show();
+                    return false;
+                }
                 Intent intent1 = new Intent(MainActivity.this, OcrActivity.class);
                 startActivity(intent1);
                 m_ocrService.recGeneral(m_imagePath);

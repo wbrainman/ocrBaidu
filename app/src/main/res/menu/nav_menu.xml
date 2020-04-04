@@ -2,9 +2,9 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/nav_1"
-            android:icon="@drawable/poo_24px"
-            android:title="Reserve"
+            android:id="@+id/files"
+            android:icon="@drawable/folder_24"
+            android:title="Files"
         />
         <item
             android:id="@+id/nav_2"

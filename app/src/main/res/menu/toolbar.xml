@@ -8,16 +8,35 @@
         android:icon="@drawable/crop_24px"
         app:showAsAction="always"
         />
-    <item
-        android:id="@+id/album"
-        android:title="Album"
-        android:icon="@drawable/picture_24px"
-        app:showAsAction="always"
-    />
+
     <item
         android:id="@+id/ocr"
         android:title="Ocr"
-        android:icon="@drawable/right_24px"
+        android:icon="@drawable/general_ocr_24"
         app:showAsAction="always"
-    />
+        />
+
+    <item
+        android:title=""
+        app:showAsAction="always"
+        android:icon="@drawable/menu">
+        <menu>
+            <item
+                android:id="@+id/album"
+                android:title="Album"
+                android:icon="@drawable/picture_24_dark"
+                app:showAsAction="withText"
+                />
+
+
+            <item
+                android:id="@+id/files"
+                android:title="Files"
+                android:icon="@drawable/folder_24_dark"
+                app:showAsAction="withText"
+                />
+
+        </menu>
+    </item>
+
 </menu>
